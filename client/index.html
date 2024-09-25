@@ -1,0 +1,109 @@
+<!-- *** index.html *** -->
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>WhisperWave</title>
+        <!-- tipografía de google fonts -->
+        <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap" rel="stylesheet">
+        <!-- CSS -->
+        <link rel="stylesheet" href="/css/style.css">
+        
+        <script type="module">
+
+            // importamos el cliente de socket.io desde una URL usando vanillaJS
+            import { io } from 'https://cdn.socket.io/4.3.2/socket.io.esm.min.js'
+        
+            const form = document.getElementById('form'); // traemos el formulario para cuando hagamos submit
+            const input = document.getElementById('input'); // leemos la informacion del mensaje
+            const messages = document.getElementById('messages'); // almaceno los mensajes dentro del ul
+
+            // Recuperar el usuario random (Usuarios sacados de la api: https://random-data-api.com/api/users/random_user )
+            const getUsername = async () => {
+
+                /* Normalmente aqui dentro lo que tendríamos que hacer es enviar la cookie, revisar que realmente la cookie tiene acceso
+                   a que es el usuario de verdad, etc ....  */
+
+                const username = localStorage.getItem('username');
+                if (username) {
+                  console.log(`Username existed: ${username}`); // si existe el usuario informamos en consola
+                }
+
+                const res = await fetch('https://random-data-api.com/api/users/random_user'); // llamamos a la api
+                const {username: randomUsername } = await res.json(); // transformamos la respuesta de la api en json
+
+                console.log('random', randomUsername);
+
+                localStorage.setItem('username', randomUsername); // guardamos este usuario
+                return randomUsername;
+            }
+
+            const socket = io({
+                auth: {
+                    username: await getUsername(),
+                    serverOffset: 0
+                }
+            });
+
+            // Cargar mensajes al conectarse
+            socket.emit('load messages'); // Emitir un evento para cargar mensajes al conectarse
+
+            // Colores asignados a cada usuario
+            const userColors = {};
+
+            const getUserColor = (username) => {
+
+                // Si el color ya ha sido asignado, devolverlo
+                if (userColors[username]) {
+                    return userColors[username];
+                }
+
+                // Asignar un color aleatorio
+                const randomColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                userColors[username] = randomColor; // Guardar el color asignado
+                return randomColor;
+            };
+
+            // Mostrar los nuevos mensajes enviados en tiempo real...
+            socket.on('CHAT_MESSAGE', (msg, serverOffset, username) => {
+                console.log('Received chat message:', msg, 'with serverOffset:', serverOffset, 'username:', username);
+                const color = getUserColor(username); // Obtener el color para el usuario
+                const item = `<li style="color: ${color};">
+                    <p>${msg}</p>
+                    ---------------------<br>
+                    <small>${username}</small>
+                    <br>---------------------
+                  </li>`; // Insertamos el HTML del item en messages.
+                messages.insertAdjacentHTML('beforeend', item); // Agregar el nuevo mensaje al DOM
+                socket.auth.serverOffset = serverOffset; // Actualizamos el serverOffset
+                messages.scrollTop = messages.scrollHeight; // Scroll al fondo
+            });
+        
+            // Enviar un mensaje cuando el formulario sea enviado
+            form.addEventListener('submit', (e) => { // escuchamos el evento para que, cuando se haga submit, evitar el comportamiento por defecto
+                e.preventDefault(); // Prevenir el comportamiento por defecto del formulario (recargar la página)
+                if (input.value) { // si tenemos algún valor en el input del formulario ...
+                    socket.emit('chat message', input.value); // ... emitimos un chat message y le pasamos el valor del input ...
+                    input.value = ''; // ... y limpiamos el valor del input para que se borre después de ser enviado
+                }
+            });
+        </script>
+
+    </head>
+    <body>
+        <h1>Welcome to WhisperWave!🚀</h1>
+        <p>Your chat experience just got cooler.</p>
+        <section id="chat">
+            <ul id="messages"></ul>
+            <form id="form">
+                <input type="text" name="message" id="input" placeholder="Type a message" autocomplete="off" />
+                <button type="submit">Enviar</button>
+            </form>
+        </section>
+
+            <small style="margin-top:9px;">Design by Rubén Fernández Martín.</small>
+            <small><a href="https://www.github.com/rubenfdezmartin" target="_blank" style="color:#0cf;text-decoration: none;">Visit GitHub Profile</a></small>
+
+    </body>
+</html>
